@@ -61,6 +61,8 @@ header{background:#222;color:#fff;padding:10px;text-align:center;}
 <div id="list"></div>
 </div>
 
+<div id="resultCount" style="margin:10px 0;font-weight:bold;"></div>
+  
 <div id="addTab" style="display:none">
 <input id="nameInput" placeholder="名前"><br><br>
 <div id="addTags"></div>
@@ -278,18 +280,25 @@ save();render();
 }
 
 function render(){
+let list=document.getElementById("list");
 list.innerHTML="";
 let today=getToday();
 
-data.filter(item=>{
+/* ★ フィルター結果を一旦変数に */
+let filtered=data.filter(item=>{
 if(showFavOnly && !item.favorite) return false;
 if(selectedTags.length===0) return true;
 
 return mode==="AND"
 ? selectedTags.every(t=>item.tags.includes(t))
 : selectedTags.some(t=>item.tags.includes(t));
-})
-.forEach(item=>{
+});
+
+/* ★ 件数表示 */
+document.getElementById("resultCount").innerText=`検索結果：${filtered.length}件`;
+
+/* ★ 表示 */
+filtered.forEach(item=>{
 let done=item.logs.some(l=>l.date===today);
 
 list.innerHTML+=`
@@ -303,7 +312,7 @@ list.innerHTML+=`
 
 <div>${item.memo||""}</div>
 
-<div>回数:${item.logs.length}</div>
+<div>作った回数:${item.logs.length}</div>
 <div>最終:${item.logs.length?item.logs[item.logs.length-1].date:"-"}</div>
 
 <div>
@@ -312,7 +321,7 @@ ${(item.images||[]).map(img=>`<img class="thumb" src="${img}" onclick="openGalle
 
 <button class="big-btn ${done?'done':''}" ${done?'disabled':''}
 onclick="addLog(${item.id})">
-${done?"済":"やった！"}
+${done?"済":"作った！"}
 </button>
 
 <div>
