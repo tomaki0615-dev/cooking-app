@@ -89,15 +89,19 @@ header{background:#222;color:#fff;padding:10px;text-align:center;}
 
 <script>
 
-/* ===== 表示ラベル ===== /
-const tagLabels={
-  type:"作者",
-  time:"種類",
-  freq:"材料",
-  body:"作業時間"
+// ★ 表示名マップ
+const tagLabels = {
+  type: "作者",
+  time: "種類",
+  freq: "材料",
+  body: "作業時間"
 };
 
-/ ===== 初期データ ===== /
+function getToday(){
+let d=new Date();
+return ${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}-${('0'+d.getDate()).slice(-2)};
+}
+
 let data=JSON.parse(localStorage.getItem("trainingApp")||"[]");
 
 let tagCategories=JSON.parse(localStorage.getItem("tagCategories"));
@@ -114,18 +118,11 @@ let selectedTags=[],addSelectedTags=[];
 let mode="OR";
 let showFavOnly=false;
 
-/ ===== 共通 ===== /
-function getToday(){
-let d=new Date();
-return ${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}-${('0'+d.getDate()).slice(-2)};
-}
-
 function save(){
 localStorage.setItem("trainingApp",JSON.stringify(data));
 localStorage.setItem("tagCategories",JSON.stringify(tagCategories));
 }
 
-/ ===== タブ ===== /
 function switchTab(tab){
 listTab.style.display=tab==="list"?"block":"none";
 addTab.style.display=tab==="add"?"block":"none";
@@ -138,7 +135,6 @@ tabTag.classList.toggle("active",tab==="tag");
 renderTags();render();renderTagManager();
 }
 
-/ ===== タグ描画 ===== /
 function renderTags(){
 let html="";
 Object.entries(tagCategories).forEach(([cat,tags])=>{
@@ -159,7 +155,6 @@ addHtml+=<span class="tag-select ${addSelectedTags.includes(tag)?"active":""}" o
 addTags.innerHTML=addHtml;
 }
 
-/ ===== タグ操作 ===== /
 function toggleTag(tag){
 selectedTags=selectedTags.includes(tag)?selectedTags.filter(t=>t!==tag):[...selectedTags,tag];
 render();renderTags();
@@ -170,11 +165,16 @@ addSelectedTags=addSelectedTags.includes(tag)?addSelectedTags.filter(t=>t!==tag)
 renderTags();
 }
 
-/ ===== 検索 ===== /
 function toggleMode(){
 mode=mode==="OR"?"AND":"OR";
 document.getElementById("mode").innerText=mode;
 render();
+}
+
+function toggleFavorite(id){
+let item=data.find(d=>d.id==id);
+item.favorite=!item.favorite;
+save();render();
 }
 
 function toggleFavFilter(){
@@ -182,7 +182,6 @@ showFavOnly=!showFavOnly;
 render();
 }
 
-/ ===== タグ管理 ===== /
 function renderTagManager(){
 let html="";
 Object.entries(tagCategories).forEach(([cat,tags])=>{
@@ -219,7 +218,6 @@ tagCategories[cat]=tagCategories[cat].filter(t=>t!==tag);
 save();renderTags();renderTagManager();
 }
 
-/ ===== 画像 ===== /
 function compressImage(file){
 return new Promise(res=>{
 let img=new Image();
@@ -238,7 +236,6 @@ r.readAsDataURL(file);
 });
 }
 
-/ ===== 追加 ===== /
 function addItem(){
 let name=nameInput.value.trim();
 if(!name)return;
@@ -269,7 +266,6 @@ switchTab("list");
 });
 }
 
-/ ===== 表示 ===== /
 function render(){
 list.innerHTML="";
 let today=getToday();
@@ -285,16 +281,11 @@ return mode==="AND"
 .forEach(item=>{
 let done=item.logs.some(l=>l.date===today);
 
-list.innerHTML+= <div class="card"> <div style="display:flex;justify-content:space-between;"> <b>${item.name}</b> <span onclick="toggleFavorite(${item.id})">${item.favorite?"★":"☆"}</span> </div>  <div>${item.tags.map(t=><span class="tag">${t}</span>).join("")}</div>  <div>${item.memo||""}</div>  <div>作った回数:${item.logs.length}</div> <div>最終:${item.logs.length?item.logs[item.logs.length-1].date:"-"}</div>  <div> ${(item.images||[]).map(img=><img class="thumb" src="${img}" onclick="openGallery(${item.id})">).join("")} </div>  <button class="big-btn ${done?'done':''}" ${done?'disabled':''} onclick="addLog(${item.id})"> ${done?"済":"作った！"} </button>  <div> <button onclick="editItem(${item.id})">編集</button> <button onclick="deleteItem(${item.id})">削除</button> </div>  </div>;
+list.innerHTML+= <div class="card"> <div style="display:flex;justify-content:space-between;"> <b>${item.name}</b> <span onclick="toggleFavorite(${item.id})">${item.favorite?"★":"☆"}</span> </div>  <div>${item.tags.map(t=><span class="tag">${t}</span>).join("")}</div>  <div>${item.memo||""}</div>  <div>回数:${item.logs.length}</div> <div>最終:${item.logs.length?item.logs[item.logs.length-1].date:"-"}</div>  <div> ${(item.images||[]).map(img=><img class="thumb" src="${img}" onclick="openGallery(${item.id})">).join("")} </div>  <button class="big-btn ${done?'done':''}" ${done?'disabled':''} onclick="addLog(${item.id})"> ${done?"済":"作った！"} </button>  <div> <button onclick="editItem(${item.id})">編集</button> <button onclick="deleteItem(${item.id})">削除</button> </div>  </div>;
 });
 }
 
-/ ===== その他 ===== /
-function toggleFavorite(id){
-let item=data.find(d=>d.id==id);
-item.favorite=!item.favorite;
-save();render();
-}
+/* 以下そのまま /
 
 function addLog(id){
 let item=data.find(d=>d.id==id);
@@ -321,7 +312,7 @@ data=data.filter(d=>d.id!==id);
 save();render();
 }
 
-/ ===== ギャラリー ===== /
+/ ギャラリー /
 let g=[],i=0,sx=0,sy=0,dy=0;
 
 function openGallery(id){
@@ -359,7 +350,7 @@ function next(){i=(i+1)%g.length;mainImg.src=g[i];}
 function prev(){i=(i-1+g.length)%g.length;mainImg.src=g[i];}
 function closeModal(){modal.style.display="none";}
 
-/ ===== 初期 ===== */
+/ 初期 */
 renderTags();
 render();
 renderTagManager();
