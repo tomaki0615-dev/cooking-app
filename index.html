@@ -178,10 +178,26 @@ tagList.innerHTML=html;
 }
 
 function addCategory(){
-let name=prompt("カテゴリ名");
-if(!name)return;
-tagCategories.push({name,tags:[]});
-saveTags();renderTags();renderTagManager();
+  let name = prompt("カテゴリ名を入力");
+
+  // ❗ 完全ガード
+  if(!name || !name.trim()){
+    alert("カテゴリ名を入力してください");
+    return;
+  }
+
+  name = name.trim();
+
+  tagCategories.push({ name, tags: [] });
+
+  saveTags();
+
+  // 👇ここが超重要
+  renderTags();
+  renderTagManager();
+
+  // デバッグ用（消してOK）
+  console.log("カテゴリ追加:", tagCategories);
 }
 
 function renameCategory(i){
@@ -302,6 +318,7 @@ render();
 
 /* 初期 */
 renderTags();
+  renderTagManager();
 </script>
 
 </body>
