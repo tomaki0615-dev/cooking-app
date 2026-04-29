@@ -13,24 +13,74 @@
 
 <style>
 body{font-family:-apple-system,sans-serif;margin:0;background:#f5f5f5;}
-header{background:#ff7f50;color:#fff;padding:15px;text-align:center;font-size:18px;}
+header{background:#ff7f50;color:#fff;padding:12px;text-align:center;font-size:16px;}
 .container{padding:10px;}
-button{padding:10px;border:none;border-radius:8px;background:#ff7f50;color:#fff;margin:5px 2px;}
+
+button{padding:8px;border:none;border-radius:8px;background:#ff7f50;color:#fff;margin:4px 2px;font-size:14px;}
 button:disabled{background:#ccc;}
-input,textarea,select{width:100%;padding:8px;margin:5px 0;border-radius:6px;border:1px solid #ccc;}
-.card{background:#fff;padding:10px;border-radius:10px;margin-bottom:10px;}
-img{width:100%;border-radius:10px;margin-top:5px;}
+
+input,textarea,select{
+  width:100%;
+  padding:8px;
+  margin:5px 0;
+  border-radius:6px;
+  border:1px solid #ccc;
+}
+
 .topbar{display:flex;gap:5px;flex-wrap:wrap;}
-.tag{font-size:12px;background:#eee;padding:3px 6px;border-radius:5px;margin-right:3px;}
-.count{font-weight:bold;}
-.fav{font-size:20px;cursor:pointer;}
+
+/* カード小型化 */
+.card{
+  background:#fff;
+  padding:8px;
+  border-radius:10px;
+  margin-bottom:8px;
+  font-size:14px;
+}
+
+/* タイトル行 */
+.card-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+
+.fav{font-size:18px;cursor:pointer;}
 .active{color:gold;}
+
+.tag{
+  font-size:11px;
+  background:#eee;
+  padding:2px 5px;
+  border-radius:5px;
+  margin-right:3px;
+}
+
+/* 👇 ギャラリー */
+.gallery{
+  display:flex;
+  overflow-x:auto;
+  gap:6px;
+  margin:5px 0;
+}
+
+.thumb{
+  width:80px;
+  height:80px;
+  object-fit:cover;
+  border-radius:8px;
+  flex-shrink:0;
+}
+
+/* 情報コンパクト */
+.count{font-size:12px;font-weight:bold;color:#555;}
+
 </style>
 </head>
 
 <body>
 
-<header>🍳 レシピ管理（安定版）</header>
+<header>🍳 レシピ管理（軽量UI）</header>
 
 <div class="container">
 
@@ -61,23 +111,19 @@ img{width:100%;border-radius:10px;margin-top:5px;}
 let db;
 let dbReady = false;
 
-// ===== DB初期化 =====
+// ===== DB =====
 const request = indexedDB.open("recipeDB", 1);
 
-request.onupgradeneeded = e => {
+request.onupgradeneeded = e=>{
   db = e.target.result;
-  db.createObjectStore("recipes", { keyPath: "id" });
+  db.createObjectStore("recipes",{keyPath:"id"});
 };
 
-request.onsuccess = e => {
+request.onsuccess = e=>{
   db = e.target.result;
   dbReady = true;
-  document.getElementById("addBtn").disabled = false;
+  document.getElementById("addBtn").disabled=false;
   render();
-};
-
-request.onerror = () => {
-  alert("DB初期化失敗");
 };
 
 // ===== UI =====
@@ -87,41 +133,33 @@ function showAdd(){
 
 // ===== 追加 =====
 function addRecipe(){
-  if(!dbReady){
-    alert("まだ準備中！");
-    return;
-  }
+  if(!dbReady){ alert("準備中"); return; }
 
   const title = document.getElementById("title").value.trim();
-  if(!title){
-    alert("レシピ名を入れてね！");
-    return;
-  }
+  if(!title){ alert("名前入れて"); return; }
 
   const files = document.getElementById("image").files;
 
-  if(files.length === 0){
+  if(files.length===0){
     saveRecipe([]);
     return;
   }
 
   const promises = Array.from(files).map(file=>{
-    return new Promise((resolve,reject)=>{
-      const reader = new FileReader();
-      reader.onload = e=>resolve(e.target.result);
-      reader.onerror = ()=>reject();
+    return new Promise((res,rej)=>{
+      const reader=new FileReader();
+      reader.onload=e=>res(e.target.result);
+      reader.onerror=rej;
       reader.readAsDataURL(file);
     });
   });
 
-  Promise.all(promises)
-    .then(imgs=>saveRecipe(imgs))
-    .catch(()=>alert("画像読み込み失敗"));
+  Promise.all(promises).then(imgs=>saveRecipe(imgs));
 }
 
 function saveRecipe(imgs){
-  const tx = db.transaction("recipes","readwrite");
-  const store = tx.objectStore("recipes");
+  const tx=db.transaction("recipes","readwrite");
+  const store=tx.objectStore("recipes");
 
   store.add({
     id:Date.now(),
@@ -134,73 +172,71 @@ function saveRecipe(imgs){
     fav:false
   });
 
-  tx.oncomplete = ()=>{
+  tx.oncomplete=()=>{
     document.getElementById("addForm").style.display="none";
     clearForm();
     render();
   };
 }
 
-// ===== フォームリセット =====
 function clearForm(){
-  document.getElementById("title").value="";
-  document.getElementById("image").value="";
-  document.getElementById("tags").value="";
-  document.getElementById("memo").value="";
+  title.value="";
+  image.value="";
+  tags.value="";
+  memo.value="";
 }
 
 // ===== 描画 =====
 function render(){
-  if(!dbReady) return;
+  if(!dbReady)return;
 
-  const tx = db.transaction("recipes","readonly");
-  const store = tx.objectStore("recipes");
-  const req = store.getAll();
+  const tx=db.transaction("recipes","readonly");
+  const store=tx.objectStore("recipes");
+  const req=store.getAll();
 
-  req.onsuccess = ()=>{
-    let recipes = req.result;
+  req.onsuccess=()=>{
+    let recipes=req.result;
 
-    const q = document.getElementById("search").value.toLowerCase();
-    const sort = document.getElementById("sort").value;
+    const q=search.value.toLowerCase();
+    const sort=document.getElementById("sort").value;
 
-    recipes = recipes.filter(r =>
-      (r.title || "").toLowerCase().includes(q)
-    );
+    recipes=recipes.filter(r=>(r.title||"").toLowerCase().includes(q));
 
     if(sort==="count"){
-      recipes.sort((a,b)=>b.count - a.count);
+      recipes.sort((a,b)=>b.count-a.count);
     }else if(sort==="recent"){
       recipes.sort((a,b)=>(b.last||"").localeCompare(a.last||""));
     }else{
-      recipes.sort((a,b)=>b.id - a.id);
+      recipes.sort((a,b)=>b.id-a.id);
     }
 
-    recipes.sort((a,b)=>b.fav - a.fav);
+    recipes.sort((a,b)=>b.fav-a.fav);
 
-    const list = document.getElementById("list");
     list.innerHTML="";
 
     recipes.forEach(r=>{
-      const div = document.createElement("div");
+      const div=document.createElement("div");
       div.className="card";
 
       div.innerHTML=`
-        <div style="display:flex;justify-content:space-between;">
-          <h3>${r.title}</h3>
+        <div class="card-header">
+          <strong>${r.title}</strong>
           <span class="fav ${r.fav?"active":""}" onclick="toggleFav(${r.id})">★</span>
         </div>
 
-        ${r.imgs.map(img=>`<img src="${img}">`).join("")}
+        <div class="gallery">
+          ${r.imgs.map(img=>`<img src="${img}" class="thumb">`).join("")}
+        </div>
 
-        <div>${r.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
+        <div>
+          ${r.tags.map(t=>`<span class="tag">${t}</span>`).join("")}
+        </div>
 
-        <p>${r.memo}</p>
+        <div class="count">
+          🍳${r.count}回 / ${r.last?new Date(r.last).toLocaleDateString():"-"}
+        </div>
 
-        <p class="count">
-          🍳 ${r.count}回 / 最終: ${r.last ? new Date(r.last).toLocaleDateString() : "-"}
-        </p>
-
-        <button onclick="cook(${r.id})">作った！</button>
+        <button onclick="cook(${r.id})">作った</button>
         <button onclick="del(${r.id})">削除</button>
       `;
 
@@ -211,37 +247,37 @@ function render(){
 
 // ===== 操作 =====
 function cook(id){
-  const tx = db.transaction("recipes","readwrite");
-  const store = tx.objectStore("recipes");
-  const req = store.get(id);
+  const tx=db.transaction("recipes","readwrite");
+  const store=tx.objectStore("recipes");
+  const req=store.get(id);
 
-  req.onsuccess = ()=>{
-    const r = req.result;
+  req.onsuccess=()=>{
+    const r=req.result;
     r.count++;
-    r.last = new Date().toISOString();
+    r.last=new Date().toISOString();
     store.put(r);
     render();
   };
 }
 
 function toggleFav(id){
-  const tx = db.transaction("recipes","readwrite");
-  const store = tx.objectStore("recipes");
-  const req = store.get(id);
+  const tx=db.transaction("recipes","readwrite");
+  const store=tx.objectStore("recipes");
+  const req=store.get(id);
 
-  req.onsuccess = ()=>{
-    const r = req.result;
-    r.fav = !r.fav;
+  req.onsuccess=()=>{
+    const r=req.result;
+    r.fav=!r.fav;
     store.put(r);
     render();
   };
 }
 
 function del(id){
-  const tx = db.transaction("recipes","readwrite");
-  const store = tx.objectStore("recipes");
+  const tx=db.transaction("recipes","readwrite");
+  const store=tx.objectStore("recipes");
   store.delete(id);
-  tx.oncomplete = render;
+  tx.oncomplete=render;
 }
 </script>
 
