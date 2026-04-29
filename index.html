@@ -155,9 +155,11 @@ function render(){
     const q=(document.getElementById("search").value||"").toLowerCase();
     const sortValue=document.getElementById("sort").value;
 
-    data = data.filter(d =>
-  (d.title || "").toLowerCase().includes(q)
-);
+    data = data.filter(d => {
+  const title = (d.title || "").toLowerCase();
+  const tags = (d.tags || "").split(",").map(t=>t.trim().toLowerCase());
+  return title.includes(q) || tags.some(t => t.includes(q));
+});
     
     if(sortValue==="count"){
       data.sort((a,b)=>b.count-a.count);
