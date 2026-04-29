@@ -3,398 +3,212 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
 <title>レシピ管理</title>
 
-<link rel="apple-touch-icon" sizes="180x180" href="icon.png">
-<meta name="apple-mobile-web-app-capable" content="yes">
+<!-- アイコン -->
+<link rel="icon" href="icon.png">
+<link rel="apple-touch-icon" href="icon.png">
 
 <style>
-body{font-family:-apple-system;margin:0;background:#f5f5f5;}
-header{background:#222;color:#fff;padding:10px;text-align:center;}
-
-.tab{display:flex;background:#eee;margin:10px;border-radius:10px;padding:3px;}
-.tab button{flex:1;padding:10px;border:none;background:transparent;}
-.tab button.active{background:#fff;border-radius:8px;}
-
+body{font-family:-apple-system,sans-serif;margin:0;background:#f5f5f5;}
+header{background:#ff7f50;color:#fff;padding:15px;text-align:center;font-size:18px;}
 .container{padding:10px;}
-.card{background:#fff;margin-bottom:10px;padding:10px;border-radius:10px;}
-
-.tag{background:#666;color:#fff;padding:4px 8px;margin:2px;border-radius:10px;font-size:12px;}
-.tag-select{background:#eee;padding:4px 8px;margin:2px;border-radius:10px;cursor:pointer;}
-.tag-select.active{background:#222;color:#fff;}
-
-.big-btn{background:#2e7d32;color:#fff;border:none;width:100%;padding:10px;border-radius:10px;}
-.big-btn.done{background:#ccc;color:#666;pointer-events:none;}
-
-/* ★ サムネ完全修正 */
-.thumb{
-  width:60px;
-  height:60px;
-  object-fit:cover;
-  object-position:center;
-  border-radius:8px;
-  display:inline-block;
-}
-
-.modal{position:fixed;inset:0;background:#000c;display:none;justify-content:center;align-items:center;}
-#mainImg{width:90vw;max-width:600px;}
+button{padding:10px;border:none;border-radius:8px;background:#ff7f50;color:#fff;margin:5px 2px;}
+input,textarea,select{width:100%;padding:8px;margin:5px 0;border-radius:6px;border:1px solid #ccc;}
+.card{background:#fff;padding:10px;border-radius:10px;margin-bottom:10px;}
+img{width:100%;border-radius:10px;margin-top:5px;}
+.topbar{display:flex;gap:5px;flex-wrap:wrap;}
+.tag{font-size:12px;background:#eee;padding:3px 6px;border-radius:5px;margin-right:3px;}
+.count{font-weight:bold;}
+.fav{font-size:20px;cursor:pointer;}
+.active{color:gold;}
 </style>
 </head>
 
 <body>
 
-<header>レシピ管理</header>
+<header>🍳 レシピ管理（IndexedDB版）</header>
 
-<div class="tab">
-<button id="tabList" class="active" onclick="switchTab('list')">検索</button>
-<button id="tabAdd" onclick="switchTab('add')">追加</button>
-<button id="tabTag" onclick="switchTab('tag')">タグ管理</button>
-</div>
-
-  
 <div class="container">
 
-<div id="listTab">
-<button onclick="toggleMode()">検索：<span id="mode">OR</span></button>
-<button onclick="toggleFavFilter()">★お気に入り</button>
-<div id="resultCount" style="margin:10px 0;font-weight:bold;"></div>
-<div id="filterTags"></div>
-<div id="list"></div>
-</div>
+<div class="topbar">
+<button onclick="showAdd()">＋追加</button>
+<input id="search" placeholder="検索..." oninput="render()">
 
-
-  
-<div id="addTab" style="display:none">
-<input id="nameInput" placeholder="名前"><br><br>
-<div id="addTags"></div>
-<textarea id="memo"></textarea><br><br>
-<input type="file" id="imageInput" multiple><br><br>
-<button onclick="addItem()">追加</button>
-</div>
-
-<div id="tagTab" style="display:none">
-<select id="newTagCat">
-<option value="type">作者</option>
-<option value="time">種類</option>
-<option value="freq">材料</option>
-<option value="body">作業時間</option>
+<select id="sort" onchange="render()">
+  <option value="new">新しい順</option>
+  <option value="count">回数順</option>
+  <option value="recent">最近作った順</option>
 </select>
-<input id="newTagName">
-<button onclick="addTag()">追加</button>
-<hr>
-<div id="tagList"></div>
 </div>
 
+<div id="addForm" style="display:none;">
+<input id="title" placeholder="レシピ名">
+<input type="file" id="image" multiple>
+<input id="tags" placeholder="タグ（例：時短,子どもウケ）">
+<textarea id="memo" placeholder="メモ"></textarea>
+<button onclick="addRecipe()">保存</button>
 </div>
 
-<div class="modal" id="modal">
-<img id="mainImg">
+<div id="list"></div>
+
 </div>
 
 <script>
-const tagLabels = {
-  type: "作者",
-  time: "種類",
-  freq: "材料",
-  body: "作業時間"
+let db;
+
+// DB初期化
+const request = indexedDB.open("recipeDB", 1);
+
+request.onupgradeneeded = e => {
+  db = e.target.result;
+  db.createObjectStore("recipes", { keyPath: "id" });
 };
-  
-  
-function getToday(){
-let d=new Date();
-return `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}-${('0'+d.getDate()).slice(-2)}`;
-}
 
-let data=JSON.parse(localStorage.getItem("trainingApp")||"[]");
-
-let tagCategories=JSON.parse(localStorage.getItem("tagCategories"));
-if(!tagCategories){
-tagCategories={
-type:["筋トレ","ストレッチ","マッサージ"],
-time:["朝","昼","夜"],
-freq:["毎日","週3","月水金"],
-body:["上半身","下半身","体幹","顔"]
+request.onsuccess = e => {
+  db = e.target.result;
+  render();
 };
+
+// 追加フォーム表示
+function showAdd(){
+  document.getElementById("addForm").style.display="block";
 }
 
-let selectedTags=[],addSelectedTags=[];
-let mode="OR";
-let showFavOnly=false;
+// 追加
+function addRecipe(){
+  const files = document.getElementById("image").files;
+  let imgs = [];
+  let loaded = 0;
 
-function save(){
-localStorage.setItem("trainingApp",JSON.stringify(data));
-localStorage.setItem("tagCategories",JSON.stringify(tagCategories));
+  if(files.length === 0){
+    saveRecipe([]);
+    return;
+  }
+
+  for(let i=0;i<files.length;i++){
+    const reader = new FileReader();
+
+    reader.onload = e=>{
+      imgs.push(e.target.result);
+      loaded++;
+      if(loaded === files.length){
+        saveRecipe(imgs);
+      }
+    };
+
+    reader.readAsDataURL(files[i]);
+  }
 }
 
-function switchTab(tab){
-listTab.style.display=tab==="list"?"block":"none";
-addTab.style.display=tab==="add"?"block":"none";
-tagTab.style.display=tab==="tag"?"block":"none";
+function saveRecipe(imgs){
+  const tx = db.transaction("recipes","readwrite");
+  const store = tx.objectStore("recipes");
 
-tabList.classList.toggle("active",tab==="list");
-tabAdd.classList.toggle("active",tab==="add");
-tabTag.classList.toggle("active",tab==="tag");
+  store.add({
+    id:Date.now(),
+    title:document.getElementById("title").value,
+    imgs:imgs,
+    tags:document.getElementById("tags").value.split(","),
+    memo:document.getElementById("memo").value,
+    count:0,
+    last:"",
+    fav:false
+  });
 
-renderTags();render();renderTagManager();
+  tx.oncomplete = render;
 }
 
-function renderTags(){
-let html="";
-Object.entries(tagCategories).forEach(([cat,tags])=>{
-html+=`<div><b>${tagLabels[cat]}</b></div>`;
-tags.forEach(tag=>{
-html+=`<span class="tag-select ${selectedTags.includes(tag)?"active":""}" onclick="toggleTag('${tag}')">${tag}</span>`;
-});
-});
-filterTags.innerHTML=html;
-
-let addHtml="";
-Object.entries(tagCategories).forEach(([cat,tags])=>{
-addHtml+=`<div><b>${tagLabels[cat]}</b></div>`;
-tags.forEach(tag=>{
-addHtml+=`<span class="tag-select ${addSelectedTags.includes(tag)?"active":""}" onclick="toggleAddTag('${tag}')">${tag}</span>`;
-});
-});
-addTags.innerHTML=addHtml;
-}
-
-function toggleTag(tag){
-selectedTags=selectedTags.includes(tag)?selectedTags.filter(t=>t!==tag):[...selectedTags,tag];
-render();renderTags();
-}
-
-function toggleAddTag(tag){
-addSelectedTags=addSelectedTags.includes(tag)?addSelectedTags.filter(t=>t!==tag):[...addSelectedTags,tag];
-renderTags();
-}
-
-function toggleMode(){
-mode=mode==="OR"?"AND":"OR";
-mode.innerText=mode;
-document.getElementById("mode").innerText=mode;
-render();
-}
-
-function toggleFavorite(id){
-let item=data.find(d=>d.id==id);
-item.favorite=!item.favorite;
-save();render();
-}
-
-function toggleFavFilter(){
-showFavOnly=!showFavOnly;
-render();
-}
-
-function renderTagManager(){
-let html="";
-Object.entries(tagCategories).forEach(([cat,tags])=>{
-html+=`<h4>${tagLabels[cat]}</h4>`;
-tags.forEach(tag=>{
-html+=`${tag}
-<button onclick="editTag('${cat}','${tag}')">編集</button>
-<button onclick="deleteTag('${cat}','${tag}')">削除</button><br>`;
-});
-});
-tagList.innerHTML=html;
-}
-
-function addTag(){
-let cat=newTagCat.value;
-let name=newTagName.value.trim();
-if(!name)return;
-if(!tagCategories[cat].includes(name)){
-tagCategories[cat].push(name);
-}
-newTagName.value="";
-save();renderTags();renderTagManager();
-}
-
-function editTag(cat,oldTag){
-let n=prompt("編集",oldTag);
-if(!n)return;
-let arr=tagCategories[cat];
-arr[arr.indexOf(oldTag)]=n;
-save();renderTags();renderTagManager();
-}
-
-function deleteTag(cat,tag){
-if(!confirm("削除する？"))return;
-tagCategories[cat]=tagCategories[cat].filter(t=>t!==tag);
-save();renderTags();renderTagManager();
-}
-
-function compressImage(file){
-return new Promise(res=>{
-let img=new Image();
-let r=new FileReader();
-r.onload=e=>img.src=e.target.result;
-img.onload=()=>{
-let c=document.createElement("canvas");
-let ctx=c.getContext("2d");
-let s=Math.min(800/img.width,1);
-c.width=img.width*s;
-c.height=img.height*s;
-ctx.drawImage(img,0,0,c.width,c.height);
-res(c.toDataURL("image/jpeg",0.7));
-};
-r.readAsDataURL(file);
-});
-}
-
-function addItem(){
-let name=nameInput.value.trim();
-if(!name)return;
-
-let ps=[];
-for(let f of imageInput.files) ps.push(compressImage(f));
-
-Promise.all(ps).then(imgs=>{
-data.push({
-id:Date.now(),
-name,
-tags:addSelectedTags,
-memo:memo.value,
-images:imgs,
-logs:[],
-favorite:false
-});
-save();
-
-alert("追加しました");
-
-nameInput.value="";
-memo.value="";
-imageInput.value="";
-addSelectedTags=[];
-
-switchTab("list");
-});
-}
-
-function addLog(id){
-let item=data.find(d=>d.id==id);
-let today=getToday();
-if(item.logs.some(l=>l.date===today)) return;
-item.logs.push({date:today});
-save();render();
-}
-
+// 取得して描画
 function render(){
-let list=document.getElementById("list");
-list.innerHTML="";
-let today=getToday();
+  const tx = db.transaction("recipes","readonly");
+  const store = tx.objectStore("recipes");
+  const req = store.getAll();
 
-/* ★ フィルター結果を一旦変数に */
-let filtered=data.filter(item=>{
-if(showFavOnly && !item.favorite) return false;
-if(selectedTags.length===0) return true;
+  req.onsuccess = ()=>{
+    let recipes = req.result;
 
-return mode==="AND"
-? selectedTags.every(t=>item.tags.includes(t))
-: selectedTags.some(t=>item.tags.includes(t));
-});
+    const q = document.getElementById("search").value.toLowerCase();
+    const sort = document.getElementById("sort").value;
 
-/* ★ 件数表示 */
-document.getElementById("resultCount").innerText=`検索結果：${filtered.length}件`;
+    recipes = recipes.filter(r=>r.title.toLowerCase().includes(q));
 
-/* ★ 表示 */
-filtered.forEach(item=>{
-let done=item.logs.some(l=>l.date===today);
+    if(sort==="count"){
+      recipes.sort((a,b)=>b.count - a.count);
+    }else if(sort==="recent"){
+      recipes.sort((a,b)=>(b.last||"").localeCompare(a.last||""));
+    }else{
+      recipes.sort((a,b)=>b.id - a.id);
+    }
 
-list.innerHTML+=`
-<div class="card">
-<div style="display:flex;justify-content:space-between;">
-<b>${item.name}</b>
-<span onclick="toggleFavorite(${item.id})">${item.favorite?"★":"☆"}</span>
-</div>
+    recipes.sort((a,b)=>b.fav - a.fav);
 
-<div>${item.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
+    const list = document.getElementById("list");
+    list.innerHTML="";
 
-<div>${item.memo||""}</div>
+    recipes.forEach(r=>{
+      const div = document.createElement("div");
+      div.className="card";
 
-<div>作った回数:${item.logs.length}</div>
-<div>最終:${item.logs.length?item.logs[item.logs.length-1].date:"-"}</div>
+      div.innerHTML=`
+        <div style="display:flex;justify-content:space-between;">
+          <h3>${r.title}</h3>
+          <span class="fav ${r.fav?"active":""}" onclick="toggleFav(${r.id})">★</span>
+        </div>
 
-<div>
-${(item.images||[]).map(img=>`<img class="thumb" src="${img}" onclick="openGallery(${item.id})">`).join("")}
-</div>
+        ${r.imgs.map(img=>`<img src="${img}">`).join("")}
 
-<button class="big-btn ${done?'done':''}" ${done?'disabled':''}
-onclick="addLog(${item.id})">
-${done?"済":"作った！"}
-</button>
+        <div>${r.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
 
-<div>
-<button onclick="editItem(${item.id})">編集</button>
-<button onclick="deleteItem(${item.id})">削除</button>
-</div>
+        <p>${r.memo}</p>
 
-</div>`;
-});
+        <p class="count">
+          🍳 ${r.count}回 / 最終: ${r.last ? new Date(r.last).toLocaleDateString() : "-"}
+        </p>
+
+        <button onclick="cook(${r.id})">作った！</button>
+        <button onclick="del(${r.id})">削除</button>
+      `;
+
+      list.appendChild(div);
+    });
+  };
 }
 
-function editItem(id){
-let item=data.find(d=>d.id==id);
-let n=prompt("名前",item.name);
-if(n===null)return;
-let m=prompt("メモ",item.memo||"");
-if(m===null)return;
-item.name=n;
-item.memo=m;
-save();render();
+// 更新系
+function cook(id){
+  const tx = db.transaction("recipes","readwrite");
+  const store = tx.objectStore("recipes");
+  const req = store.get(id);
+
+  req.onsuccess = ()=>{
+    const r = req.result;
+    r.count++;
+    r.last = new Date().toISOString();
+    store.put(r);
+    render();
+  };
 }
 
-function deleteItem(id){
-if(!confirm("削除する？"))return;
-data=data.filter(d=>d.id!==id);
-save();render();
+function toggleFav(id){
+  const tx = db.transaction("recipes","readwrite");
+  const store = tx.objectStore("recipes");
+  const req = store.get(id);
+
+  req.onsuccess = ()=>{
+    const r = req.result;
+    r.fav = !r.fav;
+    store.put(r);
+    render();
+  };
 }
 
-/* ギャラリー */
-let g=[],i=0,sx=0,sy=0,dy=0;
-
-function openGallery(id){
-let item=data.find(d=>d.id==id);
-g=item.images||[];
-i=0;
-
-modal.style.display="flex";
-mainImg.src=g[i];
-
-mainImg.ontouchstart=e=>{
-sx=e.touches[0].clientX;
-sy=e.touches[0].clientY;
-};
-
-mainImg.ontouchmove=e=>{
-dy=e.touches[0].clientY-sy;
-if(dy>0) mainImg.style.transform=`translateY(${dy}px)`;
-};
-
-mainImg.ontouchend=e=>{
-let dx=sx-e.changedTouches[0].clientX;
-
-if(Math.abs(dx)>50 && Math.abs(dy)<50){
-dx>0?next():prev();
+function del(id){
+  const tx = db.transaction("recipes","readwrite");
+  const store = tx.objectStore("recipes");
+  store.delete(id);
+  tx.oncomplete = render;
 }
-
-if(dy>120) closeModal();
-
-mainImg.style.transform="";
-};
-}
-
-function next(){i=(i+1)%g.length;mainImg.src=g[i];}
-function prev(){i=(i-1+g.length)%g.length;mainImg.src=g[i];}
-function closeModal(){modal.style.display="none";}
-
-/* 初期 */
-renderTags();
-render();
-renderTagManager();
-
 </script>
 
 </body>
