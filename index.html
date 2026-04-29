@@ -95,28 +95,35 @@ function addRecipe(){
   }
 
   const files = document.getElementById("image").files;
-  let imgs = [];
-  let loaded = 0;
 
+  // 画像なしでも保存できる
   if(files.length === 0){
     saveRecipe([]);
     return;
   }
 
-  for(let i=0;i<files.length;i++){
-    const reader = new FileReader();
+  // Promiseで確実に全部読み込む
+  const promises = Array.from(files).map(file=>{
+    return new Promise((resolve,reject)=>{
+      const reader = new FileReader();
 
-    reader.onload = e=>{
-      imgs.push(e.target.result);
-      loaded++;
-      if(loaded === files.length){
-        saveRecipe(imgs);
-      }
-    };
+      reader.onload = e=>resolve(e.target.result);
+      reader.onerror = ()=>reject();
 
-    reader.readAsDataURL(files[i]);
-  }
+      reader.readAsDataURL(file);
+    });
+  });
+
+  Promise.all(promises)
+    .then(imgs=>{
+      saveRecipe(imgs);
+    })
+    .catch(()=>{
+      alert("画像の読み込みに失敗したよ");
+    });
 }
+  
+
 
 function saveRecipe(imgs){
   const tx = db.transaction("recipes","readwrite");
