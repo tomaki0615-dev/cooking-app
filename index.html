@@ -174,68 +174,39 @@ function render(){
       const div=document.createElement("div");
       div.className="card";
 
-      div.innerHTML = `
-  <!-- 表示モード -->
-  <div id="view-${d.id}">
-    <h3>${d.title}</h3>
+      div.innerHTML=`
+        <div class="card-header">
+          <strong contenteditable="true" onblur="updateField(${d.id},'title',this.innerText)">
+            ${d.title}
+          </strong>
+          <span class="fav ${d.fav?"active":""}" onclick="toggleFav(${d.id})">★</span>
+        </div>
 
-    <div class="gallery">
-      ${d.imgs.map(img=>`<img src="${img}" class="thumb">`).join("")}
-    </div>
+        <div class="gallery">
+          ${d.imgs.map(img=>`<img src="${img}" class="thumb" onclick="openModal('${img}')">`).join("")}
+        </div>
 
-    <div>
-      ${(d.tags||"").split(",").map(t=>`<span class="tag">${t}</span>`).join("")}
-    </div>
+        <div contenteditable="true" onblur="updateTags(${d.id},this.innerText)">
+          ${d.tags.join(",")}
+        </div>
 
-    <p>${d.memo||""}</p>
+        <div contenteditable="true" onblur="updateField(${d.id},'memo',this.innerText)">
+          ${d.memo||""}
+        </div>
 
-    <p>🍳${d.count}回</p>
+        <div class="count">
+          🍳${d.count}回 / ${d.last?new Date(d.last).toLocaleDateString():"-"}
+        </div>
 
-    <button onclick="edit(${d.id})">編集</button>
-    <button onclick="cook(${d.id})">作った</button>
-    <button onclick="del(${d.id})">削除</button>
-  </div>
-
-  <!-- 編集モード -->
-  <div id="edit-${d.id}" style="display:none;">
-    <input id="e-title-${d.id}" value="${d.title}">
-    <input id="e-tags-${d.id}" value="${d.tags||""}">
-    <textarea id="e-memo-${d.id}">${d.memo||""}</textarea>
-
-    <button onclick="saveEdit(${d.id})">保存</button>
-    <button onclick="cancelEdit(${d.id})">キャンセル</button>
-  </div>
-`;
-      
+        <button onclick="cook(${d.id})">作った</button>
+        <button onclick="del(${d.id})">削除</button>
+      `;
 
       list.appendChild(div);
     });
   };
 }
-function edit(id){
-  document.getElementById("view-"+id).style.display="none";
-  document.getElementById("edit-"+id).style.display="block";
-}
 
-function cancelEdit(id){
-  document.getElementById("view-"+id).style.display="block";
-  document.getElementById("edit-"+id).style.display="none";
-}
-
-function saveEdit(id){
-  const tx = db.transaction("recipes","readwrite");
-  const store = tx.objectStore("recipes");
-  const req = store.get(id);
-
-  req.onsuccess = ()=>{
-    const d = req.result;
-    d.title = document.getElementById("e-title-"+id).value;
-    d.tags = document.getElementById("e-tags-"+id).value;
-    d.memo = document.getElementById("e-memo-"+id).value;
-    store.put(d);
-    render();
-  };
-}
 // ===== 更新 =====
 function updateField(id,field,value){
   const tx=db.transaction("recipes","readwrite");
