@@ -31,41 +31,18 @@ input,textarea,select{width:100%;padding:8px;margin:5px 0;border-radius:6px;bord
 
 .count{font-size:12px;color:#555;}
 
-/* モーダル */
 .modal{
-  position:fixed;
-  top:0;left:0;
-  width:100%;height:100%;
+  position:fixed;top:0;left:0;width:100%;height:100%;
   background:rgba(0,0,0,0.8);
-  display:none;
-  justify-content:center;
-  align-items:center;
-  z-index:1000;
+  display:none;justify-content:center;align-items:center;
 }
-.modal img{
-  max-width:90%;
-  max-height:80%;
-  border-radius:10px;
-}
-.modal-close{
-  position:absolute;
-  top:20px;
-  right:20px;
-  font-size:24px;
-  color:#fff;
-  cursor:pointer;
-}
-
-/* 編集 */
-.edit-area input, .edit-area textarea{
-  font-size:14px;
-}
+.modal img{max-width:90%;max-height:80%;}
 </style>
 </head>
 
 <body>
 
-<header>🍳 レシピ管理（進化版）</header>
+<header>🍳 レシピ管理（完全版）</header>
 
 <div class="container">
 
@@ -79,7 +56,7 @@ input,textarea,select{width:100%;padding:8px;margin:5px 0;border-radius:6px;bord
 </select>
 
 <div id="addForm" style="display:none;">
-<input id="title" placeholder="レシピ名">
+<input id="title" placeholder="レシピ名（必須）">
 <input type="file" id="image" multiple>
 <input id="tags" placeholder="タグ（カンマ区切り）">
 <textarea id="memo" placeholder="メモ"></textarea>
@@ -90,15 +67,12 @@ input,textarea,select{width:100%;padding:8px;margin:5px 0;border-radius:6px;bord
 
 </div>
 
-<!-- モーダル -->
-<div id="modal" class="modal" onclick="closeModal()">
-<span class="modal-close">✕</span>
+<div id="modal" class="modal" onclick="this.style.display='none'">
 <img id="modalImg">
 </div>
 
 <script>
-let db;
-let dbReady=false;
+let db, dbReady=false;
 
 const req=indexedDB.open("recipeDB",1);
 
@@ -113,18 +87,20 @@ req.onsuccess=e=>{
   render();
 };
 
-// ===== 追加 =====
+// ===== UI =====
 function showAdd(){
-  addForm.style.display="block";
+  document.getElementById("addForm").style.display="block";
 }
 
+// ===== 追加 =====
 function addRecipe(){
-  if(!dbReady)return;
+  if(!dbReady){ alert("準備中"); return; }
 
-  const titleVal=title.value.trim();
-  if(!titleVal){ alert("名前入れて"); return;}
+  const titleEl=document.getElementById("title");
+  const title=titleEl.value.trim();
+  if(!title){ alert("名前入れて"); return; }
 
-  const files=image.files;
+  const files=document.getElementById("image").files;
 
   if(files.length===0){
     saveRecipe([]);
@@ -146,18 +122,21 @@ function saveRecipe(imgs){
 
   store.add({
     id:Date.now(),
-    title:title.value,
+    title:document.getElementById("title").value,
     imgs:imgs,
-    tags:tags.value.split(",").filter(t=>t),
-    memo:memo.value,
+    tags:(document.getElementById("tags").value||"").split(",").filter(t=>t),
+    memo:document.getElementById("memo").value,
     count:0,
     last:"",
     fav:false
   });
 
   tx.oncomplete=()=>{
-    addForm.style.display="none";
-    title.value=""; image.value=""; tags.value=""; memo.value="";
+    document.getElementById("addForm").style.display="none";
+    document.getElementById("title").value="";
+    document.getElementById("image").value="";
+    document.getElementById("tags").value="";
+    document.getElementById("memo").value="";
     render();
   };
 }
@@ -168,22 +147,27 @@ function render(){
 
   const tx=db.transaction("recipes","readonly");
   const store=tx.objectStore("recipes");
-  const r=store.getAll();
+  const req=store.getAll();
 
-  r.onsuccess=()=>{
-    let data=r.result;
+  req.onsuccess=()=>{
+    let data=req.result || [];
 
-    const q=search.value.toLowerCase();
-    const sort=sort.value;
+    const q=(document.getElementById("search").value||"").toLowerCase();
+    const sortValue=document.getElementById("sort").value;
 
     data=data.filter(d=>(d.title||"").toLowerCase().includes(q));
 
-    if(sort==="count") data.sort((a,b)=>b.count-a.count);
-    else if(sort==="recent") data.sort((a,b)=>(b.last||"").localeCompare(a.last||""));
-    else data.sort((a,b)=>b.id-a.id);
+    if(sortValue==="count"){
+      data.sort((a,b)=>b.count-a.count);
+    }else if(sortValue==="recent"){
+      data.sort((a,b)=>(b.last||"").localeCompare(a.last||""));
+    }else{
+      data.sort((a,b)=>b.id-a.id);
+    }
 
     data.sort((a,b)=>b.fav-a.fav);
 
+    const list=document.getElementById("list");
     list.innerHTML="";
 
     data.forEach(d=>{
@@ -207,7 +191,7 @@ function render(){
         </div>
 
         <div contenteditable="true" onblur="updateField(${d.id},'memo',this.innerText)">
-          ${d.memo}
+          ${d.memo||""}
         </div>
 
         <div class="count">
@@ -227,10 +211,11 @@ function render(){
 function updateField(id,field,value){
   const tx=db.transaction("recipes","readwrite");
   const store=tx.objectStore("recipes");
-  const r=store.get(id);
+  const req=store.get(id);
 
-  r.onsuccess=()=>{
-    const d=r.result;
+  req.onsuccess=()=>{
+    const d=req.result;
+    if(!d)return;
     d[field]=value;
     store.put(d);
   };
@@ -240,14 +225,15 @@ function updateTags(id,text){
   updateField(id,"tags",text.split(",").map(t=>t.trim()).filter(t=>t));
 }
 
-// ===== その他操作 =====
+// ===== 操作 =====
 function cook(id){
   const tx=db.transaction("recipes","readwrite");
   const store=tx.objectStore("recipes");
-  const r=store.get(id);
+  const req=store.get(id);
 
-  r.onsuccess=()=>{
-    const d=r.result;
+  req.onsuccess=()=>{
+    const d=req.result;
+    if(!d)return;
     d.count++;
     d.last=new Date().toISOString();
     store.put(d);
@@ -258,10 +244,11 @@ function cook(id){
 function toggleFav(id){
   const tx=db.transaction("recipes","readwrite");
   const store=tx.objectStore("recipes");
-  const r=store.get(id);
+  const req=store.get(id);
 
-  r.onsuccess=()=>{
-    const d=r.result;
+  req.onsuccess=()=>{
+    const d=req.result;
+    if(!d)return;
     d.fav=!d.fav;
     store.put(d);
     render();
@@ -277,12 +264,8 @@ function del(id){
 
 // ===== モーダル =====
 function openModal(src){
-  modal.style.display="flex";
-  modalImg.src=src;
-}
-
-function closeModal(){
-  modal.style.display="none";
+  document.getElementById("modal").style.display="flex";
+  document.getElementById("modalImg").src=src;
 }
 </script>
 
