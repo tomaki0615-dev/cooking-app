@@ -5,11 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>レシピ管理</title>
 
-<!-- アイコン（同じフォルダに icon.png を置く） -->
 <link rel="icon" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
 
-<!-- iPhoneアプリ風 -->
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="レシピ管理">
 
@@ -32,7 +30,7 @@ img{width:100%;border-radius:10px;margin-top:5px;}
 
 <body>
 
-<header>🍳 レシピ管理（完成版）</header>
+<header>🍳 レシピ管理（安定版）</header>
 
 <div class="container">
 
@@ -48,7 +46,7 @@ img{width:100%;border-radius:10px;margin-top:5px;}
 </div>
 
 <div id="addForm" style="display:none;">
-<input id="title" placeholder="レシピ名">
+<input id="title" placeholder="レシピ名（必須）">
 <input type="file" id="image" multiple>
 <input id="tags" placeholder="タグ（例：時短,子どもウケ）">
 <textarea id="memo" placeholder="メモ"></textarea>
@@ -63,7 +61,7 @@ img{width:100%;border-radius:10px;margin-top:5px;}
 let db;
 let dbReady = false;
 
-// ===== IndexedDB初期化 =====
+// ===== DB初期化 =====
 const request = indexedDB.open("recipeDB", 1);
 
 request.onupgradeneeded = e => {
@@ -78,7 +76,7 @@ request.onsuccess = e => {
   render();
 };
 
-request.onerror = e => {
+request.onerror = () => {
   alert("DB初期化失敗");
 };
 
@@ -94,36 +92,32 @@ function addRecipe(){
     return;
   }
 
+  const title = document.getElementById("title").value.trim();
+  if(!title){
+    alert("レシピ名を入れてね！");
+    return;
+  }
+
   const files = document.getElementById("image").files;
 
-  // 画像なしでも保存できる
   if(files.length === 0){
     saveRecipe([]);
     return;
   }
 
-  // Promiseで確実に全部読み込む
   const promises = Array.from(files).map(file=>{
     return new Promise((resolve,reject)=>{
       const reader = new FileReader();
-
       reader.onload = e=>resolve(e.target.result);
       reader.onerror = ()=>reject();
-
       reader.readAsDataURL(file);
     });
   });
 
   Promise.all(promises)
-    .then(imgs=>{
-      saveRecipe(imgs);
-    })
-    .catch(()=>{
-      alert("画像の読み込みに失敗したよ");
-    });
+    .then(imgs=>saveRecipe(imgs))
+    .catch(()=>alert("画像読み込み失敗"));
 }
-  
-
 
 function saveRecipe(imgs){
   const tx = db.transaction("recipes","readwrite");
@@ -141,9 +135,18 @@ function saveRecipe(imgs){
   });
 
   tx.oncomplete = ()=>{
-    render();
     document.getElementById("addForm").style.display="none";
+    clearForm();
+    render();
   };
+}
+
+// ===== フォームリセット =====
+function clearForm(){
+  document.getElementById("title").value="";
+  document.getElementById("image").value="";
+  document.getElementById("tags").value="";
+  document.getElementById("memo").value="";
 }
 
 // ===== 描画 =====
@@ -160,7 +163,9 @@ function render(){
     const q = document.getElementById("search").value.toLowerCase();
     const sort = document.getElementById("sort").value;
 
-    recipes = recipes.filter(r=>r.title.toLowerCase().includes(q));
+    recipes = recipes.filter(r =>
+      (r.title || "").toLowerCase().includes(q)
+    );
 
     if(sort==="count"){
       recipes.sort((a,b)=>b.count - a.count);
