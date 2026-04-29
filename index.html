@@ -39,6 +39,7 @@ header{background:#222;color:#fff;padding:10px;text-align:center;}
 <div id="listTab">
 <button onclick="toggleMode()">検索：<span id="mode">OR</span></button>
 <button onclick="toggleFavFilter()">★お気に入り</button>
+<div id="resultCount" style="margin:10px 0;font-weight:bold;"></div>
 <div id="filterTags"></div>
 <div id="list"></div>
 </div>
@@ -285,6 +286,9 @@ function render(){
 list.innerHTML="";
 
 let filtered=data.filter(item=>{
+  document.getElementById("resultCount").innerText =
+`検索結果：${filtered.length}件`;
+  
 if(showFavOnly && !item.favorite) return false;
 if(selectedTags.length===0) return true;
 
