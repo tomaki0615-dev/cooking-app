@@ -38,6 +38,7 @@ header{background:#222;color:#fff;padding:10px;text-align:center;}
 
 <div id="listTab">
 <button onclick="toggleMode()">検索：<span id="mode">OR</span></button>
+<button onclick="toggleFavFilter()">★お気に入り</button>
 <div id="filterTags"></div>
 <div id="list"></div>
 </div>
@@ -94,7 +95,7 @@ function deleteItemDB(id){
     .delete(id);
 }
 
-/* ===== カテゴリ（可変） ===== */
+/* ===== カテゴリ ===== */
 let tagCategories=JSON.parse(localStorage.getItem("tagCategories"))||[
   {name:"種類",tags:["主食","おかず"]},
   {name:"時間",tags:["朝","昼","夜"]},
@@ -107,6 +108,7 @@ localStorage.setItem("tagCategories",JSON.stringify(tagCategories));
 
 let selectedTags=[],addSelectedTags=[];
 let mode="OR";
+let showFavOnly=false;
 
 /* ===== タブ ===== */
 function switchTab(tab){
@@ -155,6 +157,17 @@ addSelectedTags=addSelectedTags.includes(tag)
 renderTags();
 }
 
+function toggleMode(){
+mode=mode==="OR"?"AND":"OR";
+document.getElementById("mode").innerText=mode;
+render();
+}
+
+function toggleFavFilter(){
+showFavOnly=!showFavOnly;
+render();
+}
+
 /* ===== カテゴリ管理 ===== */
 function renderTagManager(){
 let html="";
@@ -178,32 +191,16 @@ tagList.innerHTML=html;
 }
 
 function addCategory(){
-  let name = prompt("カテゴリ名を入力");
-
-  // ❗ 完全ガード
-  if(!name || !name.trim()){
-    alert("カテゴリ名を入力してください");
-    return;
-  }
-
-  name = name.trim();
-
-  tagCategories.push({ name, tags: [] });
-
-  saveTags();
-
-  // 👇ここが超重要
-  renderTags();
-  renderTagManager();
-
-  // デバッグ用（消してOK）
-  console.log("カテゴリ追加:", tagCategories);
+let name=prompt("カテゴリ名");
+if(!name || !name.trim()) return;
+tagCategories.push({name:name.trim(),tags:[]});
+saveTags();renderTags();renderTagManager();
 }
 
 function renameCategory(i){
 let n=prompt("カテゴリ名変更",tagCategories[i].name);
-if(!n)return;
-tagCategories[i].name=n;
+if(!n || !n.trim()) return;
+tagCategories[i].name=n.trim();
 saveTags();renderTags();renderTagManager();
 }
 
@@ -215,16 +212,16 @@ saveTags();renderTags();renderTagManager();
 
 function addTag(i){
 let name=prompt("タグ名");
-if(!name)return;
-tagCategories[i].tags.push(name);
+if(!name || !name.trim()) return;
+tagCategories[i].tags.push(name.trim());
 saveTags();renderTags();renderTagManager();
 }
 
 function editTag(i,old){
 let n=prompt("編集",old);
-if(!n)return;
+if(!n || !n.trim()) return;
 let arr=tagCategories[i].tags;
-arr[arr.indexOf(old)]=n;
+arr[arr.indexOf(old)]=n.trim();
 saveTags();renderTags();renderTagManager();
 }
 
@@ -267,7 +264,8 @@ id:Date.now(),
 name,
 tags:addSelectedTags,
 memo:memo.value,
-images:imgs
+images:imgs,
+favorite:false
 };
 
 data.push(item);
@@ -287,7 +285,9 @@ function render(){
 list.innerHTML="";
 
 let filtered=data.filter(item=>{
+if(showFavOnly && !item.favorite) return false;
 if(selectedTags.length===0) return true;
+
 return mode==="AND"
 ? selectedTags.every(t=>item.tags.includes(t))
 : selectedTags.some(t=>item.tags.includes(t));
@@ -296,26 +296,43 @@ return mode==="AND"
 filtered.forEach(item=>{
 list.innerHTML+=`
 <div class="card">
+
+<div style="display:flex;justify-content:space-between;">
 <b>${item.name}</b>
+<span onclick="toggleFavorite(${item.id})">
+${item.favorite?"★":"☆"}
+</span>
+</div>
+
 <div>${item.tags.map(t=>`<span class="tag">${t}</span>`).join("")}</div>
 <div>${item.memo||""}</div>
+
 <div>
 ${(item.images||[]).map(img=>{
 let url=URL.createObjectURL(img);
 return `<img class="thumb" src="${url}">`;
 }).join("")}
 </div>
+
 <button onclick="deleteItem(${item.id})">削除</button>
+
 </div>`;
 });
 }
 
+function toggleFavorite(id){
+let item=data.find(d=>d.id==id);
+item.favorite=!item.favorite;
+saveItem(item);
+render();
+}
+
 function deleteItem(id){
+if(!confirm("削除する？"))return;
 data=data.filter(d=>d.id!==id);
 deleteItemDB(id);
 render();
 }
-
 
 /* 初期 */
 renderTags();
