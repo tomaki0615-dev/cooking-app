@@ -5,9 +5,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>レシピ管理</title>
+
 <link rel="apple-touch-icon" sizes="180x180" href="icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+
 <style>
 body{font-family:-apple-system;margin:0;background:#f5f5f5;}
 header{background:#222;color:#fff;padding:10px;text-align:center;}
@@ -19,11 +20,8 @@ header{background:#222;color:#fff;padding:10px;text-align:center;}
 .tag{background:#666;color:#fff;padding:4px 8px;margin:2px;border-radius:10px;font-size:12px;}
 .tag-select{background:#eee;padding:4px 8px;margin:2px;border-radius:10px;cursor:pointer;}
 .tag-select.active{background:#222;color:#fff;}
-.big-btn{background:#2e7d32;color:#fff;border:none;width:100%;padding:10px;border-radius:10px;}
-.big-btn.done{background:#ccc;color:#666;pointer-events:none;}
 .thumb{width:60px;height:60px;object-fit:cover;border-radius:8px;}
-.modal{position:fixed;inset:0;background:#000c;display:none;justify-content:center;align-items:center;}
-#mainImg{width:90vw;max-width:600px;}
+.big-btn{background:#2e7d32;color:#fff;border:none;width:100%;padding:10px;border-radius:10px;}
 </style>
 </head>
 
@@ -59,27 +57,26 @@ header{background:#222;color:#fff;padding:10px;text-align:center;}
 <select id="newTagCat">
 <option value="type">種類</option>
 <option value="time">時間</option>
+<option value="material">材料</option>
 </select>
-
 <input id="newTagName" placeholder="タグ名">
 <button onclick="addTag()">追加</button>
-
 <hr>
 <div id="tagList"></div>
 </div>
 
-<div class="modal" id="modal"><img id="mainImg"></div>
+</div>
 
 <script>
-/* ===== IndexedDB ===== */
-let db;
-let data=[];
-
+/* ===== DB ===== */
+let db,data=[];
 const req=indexedDB.open("recipeDB",1);
+
 req.onupgradeneeded=e=>{
   db=e.target.result;
   db.createObjectStore("recipes",{keyPath:"id"});
 };
+
 req.onsuccess=e=>{
   db=e.target.result;
   loadData();
@@ -87,8 +84,7 @@ req.onsuccess=e=>{
 
 function loadData(){
   const tx=db.transaction("recipes","readonly");
-  const store=tx.objectStore("recipes");
-  store.getAll().onsuccess=e=>{
+  tx.objectStore("recipes").getAll().onsuccess=e=>{
     data=e.target.result||[];
     render();
   };
@@ -105,17 +101,24 @@ function deleteItemDB(id){
 }
 
 /* ===== タグ ===== */
-let tagCategories=JSON.parse(localStorage.getItem("tagCategories"))||{
-type:["主食","おかず"],
-time:["朝","昼","夜"]
+const tagLabels={
+type:"種類",
+time:"時間",
+material:"材料"
 };
 
-let selectedTags=[],addSelectedTags=[];
-let mode="OR",showFavOnly=false;
+let tagCategories=JSON.parse(localStorage.getItem("tagCategories"))||{
+type:["主食","おかず"],
+time:["朝","昼","夜"],
+material:["肉","魚","野菜"]
+};
 
 function saveTags(){
 localStorage.setItem("tagCategories",JSON.stringify(tagCategories));
 }
+
+let selectedTags=[],addSelectedTags=[];
+let mode="OR",showFavOnly=false;
 
 /* ===== UI ===== */
 function switchTab(tab){
@@ -123,22 +126,29 @@ listTab.style.display=tab==="list"?"block":"none";
 addTab.style.display=tab==="add"?"block":"none";
 tagTab.style.display=tab==="tag"?"block":"none";
 
+tabList.classList.toggle("active",tab==="list");
+tabAdd.classList.toggle("active",tab==="add");
+tabTag.classList.toggle("active",tab==="tag");
+
 renderTags();
 render();
-renderTagManager(); // ←これ追加
+renderTagManager();
 }
 
 function renderTags(){
-let html="";
-Object.values(tagCategories).flat().forEach(tag=>{
-html+=`<span class="tag-select ${selectedTags.includes(tag)?"active":""}" onclick="toggleTag('${tag}')">${tag}</span>`;
-});
-filterTags.innerHTML=html;
+let html="",addHtml="";
 
-let addHtml="";
-Object.values(tagCategories).flat().forEach(tag=>{
+Object.entries(tagCategories).forEach(([cat,tags])=>{
+html+=`<div><b>${tagLabels[cat]}</b></div>`;
+addHtml+=`<div><b>${tagLabels[cat]}</b></div>`;
+
+tags.forEach(tag=>{
+html+=`<span class="tag-select ${selectedTags.includes(tag)?"active":""}" onclick="toggleTag('${tag}')">${tag}</span>`;
 addHtml+=`<span class="tag-select ${addSelectedTags.includes(tag)?"active":""}" onclick="toggleAddTag('${tag}')">${tag}</span>`;
 });
+});
+
+filterTags.innerHTML=html;
 addTags.innerHTML=addHtml;
 }
 
@@ -146,6 +156,7 @@ function toggleTag(tag){
 selectedTags=selectedTags.includes(tag)?selectedTags.filter(t=>t!==tag):[...selectedTags,tag];
 render();renderTags();
 }
+
 function toggleAddTag(tag){
 addSelectedTags=addSelectedTags.includes(tag)?addSelectedTags.filter(t=>t!==tag):[...addSelectedTags,tag];
 renderTags();
@@ -153,14 +164,8 @@ renderTags();
 
 function toggleMode(){
 mode=mode==="OR"?"AND":"OR";
+mode.innerText=mode;
 document.getElementById("mode").innerText=mode;
-render();
-}
-
-function toggleFavorite(id){
-let item=data.find(d=>d.id==id);
-item.favorite=!item.favorite;
-saveItem(item);
 render();
 }
 
@@ -169,7 +174,52 @@ showFavOnly=!showFavOnly;
 render();
 }
 
-/* ===== 画像圧縮→Blob ===== */
+/* ===== タグ管理 ===== */
+function renderTagManager(){
+let html="";
+Object.entries(tagCategories).forEach(([cat,tags])=>{
+html+=`<h4>${tagLabels[cat]}</h4>`;
+tags.forEach(tag=>{
+html+=`${tag}
+<button onclick="editTag('${cat}','${tag}')">編集</button>
+<button onclick="deleteTag('${cat}','${tag}')">削除</button><br>`;
+});
+});
+tagList.innerHTML=html;
+}
+
+function addTag(){
+let cat=newTagCat.value;
+let name=newTagName.value.trim();
+if(!name)return;
+if(!tagCategories[cat].includes(name)){
+tagCategories[cat].push(name);
+}
+newTagName.value="";
+saveTags();
+renderTags();
+renderTagManager();
+}
+
+function editTag(cat,oldTag){
+let n=prompt("編集",oldTag);
+if(!n)return;
+let arr=tagCategories[cat];
+arr[arr.indexOf(oldTag)]=n;
+saveTags();
+renderTags();
+renderTagManager();
+}
+
+function deleteTag(cat,tag){
+if(!confirm("削除する？"))return;
+tagCategories[cat]=tagCategories[cat].filter(t=>t!==tag);
+saveTags();
+renderTags();
+renderTagManager();
+}
+
+/* ===== 画像 ===== */
 function compressImage(file){
 return new Promise(res=>{
 let img=new Image();
@@ -177,11 +227,10 @@ let r=new FileReader();
 r.onload=e=>img.src=e.target.result;
 img.onload=()=>{
 let c=document.createElement("canvas");
-let ctx=c.getContext("2d");
 let s=Math.min(800/img.width,1);
 c.width=img.width*s;
 c.height=img.height*s;
-ctx.drawImage(img,0,0,c.width,c.height);
+c.getContext("2d").drawImage(img,0,0,c.width,c.height);
 c.toBlob(blob=>res(blob),"image/jpeg",0.7);
 };
 r.readAsDataURL(file);
@@ -221,61 +270,8 @@ switchTab("list");
 });
 }
 
-function renderTagManager(){
-let html="";
-Object.entries(tagCategories).forEach(([cat,tags])=>{
-html+=`<h4>${cat}</h4>`;
-tags.forEach(tag=>{
-html+=`
-${tag}
-<button onclick="editTag('${cat}','${tag}')">編集</button>
-<button onclick="deleteTag('${cat}','${tag}')">削除</button><br>
-`;
-});
-});
-tagList.innerHTML=html;
-}
-
-function addTag(){
-let cat=newTagCat.value;
-let name=newTagName.value.trim();
-if(!name)return;
-
-if(!tagCategories[cat].includes(name)){
-tagCategories[cat].push(name);
-}
-
-newTagName.value="";
-saveTags();
-renderTags();
-renderTagManager();
-}
-
-function editTag(cat,oldTag){
-let n=prompt("編集",oldTag);
-if(!n)return;
-
-let arr=tagCategories[cat];
-arr[arr.indexOf(oldTag)]=n;
-
-saveTags();
-renderTags();
-renderTagManager();
-}
-
-function deleteTag(cat,tag){
-if(!confirm("削除する？"))return;
-
-tagCategories[cat]=tagCategories[cat].filter(t=>t!==tag);
-
-saveTags();
-renderTags();
-renderTagManager();
-}
-  
 /* ===== 表示 ===== */
 function render(){
-let list=document.getElementById("list");
 list.innerHTML="";
 
 let filtered=data.filter(item=>{
@@ -307,6 +303,13 @@ return `<img class="thumb" src="${url}">`;
 <button onclick="deleteItem(${item.id})">削除</button>
 </div>`;
 });
+}
+
+function toggleFavorite(id){
+let item=data.find(d=>d.id==id);
+item.favorite=!item.favorite;
+saveItem(item);
+render();
 }
 
 function deleteItem(id){
