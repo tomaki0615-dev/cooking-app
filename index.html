@@ -157,9 +157,9 @@ function render(){
 
     data = data.filter(d => {
   const title = (d.title || "").toLowerCase();
-  const tags = (d.tags || "").toLowerCase();
+  const tags = (d.tags || "").split(",").map(t=>t.trim().toLowerCase());
 
-  return title.includes(q) || tags.includes(q);
+  return title.includes(q) || tags.some(t => t.includes(q));
 });
 
     if(sortValue==="count"){
