@@ -5,15 +5,20 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>レシピ管理</title>
 
-<!-- アイコン -->
+<!-- アイコン（同じフォルダに icon.png を置く） -->
 <link rel="icon" href="icon.png">
 <link rel="apple-touch-icon" href="icon.png">
+
+<!-- iPhoneアプリ風 -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="レシピ管理">
 
 <style>
 body{font-family:-apple-system,sans-serif;margin:0;background:#f5f5f5;}
 header{background:#ff7f50;color:#fff;padding:15px;text-align:center;font-size:18px;}
 .container{padding:10px;}
 button{padding:10px;border:none;border-radius:8px;background:#ff7f50;color:#fff;margin:5px 2px;}
+button:disabled{background:#ccc;}
 input,textarea,select{width:100%;padding:8px;margin:5px 0;border-radius:6px;border:1px solid #ccc;}
 .card{background:#fff;padding:10px;border-radius:10px;margin-bottom:10px;}
 img{width:100%;border-radius:10px;margin-top:5px;}
@@ -27,12 +32,12 @@ img{width:100%;border-radius:10px;margin-top:5px;}
 
 <body>
 
-<header>🍳 レシピ管理（IndexedDB版）</header>
+<header>🍳 レシピ管理（完成版）</header>
 
 <div class="container">
 
 <div class="topbar">
-<button onclick="showAdd()">＋追加</button>
+<button id="addBtn" onclick="showAdd()" disabled>＋追加</button>
 <input id="search" placeholder="検索..." oninput="render()">
 
 <select id="sort" onchange="render()">
@@ -56,8 +61,9 @@ img{width:100%;border-radius:10px;margin-top:5px;}
 
 <script>
 let db;
+let dbReady = false;
 
-// DB初期化
+// ===== IndexedDB初期化 =====
 const request = indexedDB.open("recipeDB", 1);
 
 request.onupgradeneeded = e => {
@@ -67,16 +73,27 @@ request.onupgradeneeded = e => {
 
 request.onsuccess = e => {
   db = e.target.result;
+  dbReady = true;
+  document.getElementById("addBtn").disabled = false;
   render();
 };
 
-// 追加フォーム表示
+request.onerror = e => {
+  alert("DB初期化失敗");
+};
+
+// ===== UI =====
 function showAdd(){
   document.getElementById("addForm").style.display="block";
 }
 
-// 追加
+// ===== 追加 =====
 function addRecipe(){
+  if(!dbReady){
+    alert("まだ準備中！");
+    return;
+  }
+
   const files = document.getElementById("image").files;
   let imgs = [];
   let loaded = 0;
@@ -109,18 +126,23 @@ function saveRecipe(imgs){
     id:Date.now(),
     title:document.getElementById("title").value,
     imgs:imgs,
-    tags:document.getElementById("tags").value.split(","),
+    tags:document.getElementById("tags").value.split(",").filter(t=>t),
     memo:document.getElementById("memo").value,
     count:0,
     last:"",
     fav:false
   });
 
-  tx.oncomplete = render;
+  tx.oncomplete = ()=>{
+    render();
+    document.getElementById("addForm").style.display="none";
+  };
 }
 
-// 取得して描画
+// ===== 描画 =====
 function render(){
+  if(!dbReady) return;
+
   const tx = db.transaction("recipes","readonly");
   const store = tx.objectStore("recipes");
   const req = store.getAll();
@@ -175,7 +197,7 @@ function render(){
   };
 }
 
-// 更新系
+// ===== 操作 =====
 function cook(id){
   const tx = db.transaction("recipes","readwrite");
   const store = tx.objectStore("recipes");
