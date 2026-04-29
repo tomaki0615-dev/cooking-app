@@ -74,10 +74,10 @@ header{background:#222;color:#fff;padding:10px;text-align:center;}
 
 <div id="tagTab" style="display:none">
 <select id="newTagCat">
-<option value="type">種類</option>
-<option value="time">肉・魚など</option>
-<option value="freq">卵・野菜など</option>
-<
+<option value="type">作者</option>
+<option value="time">種類</option>
+<option value="freq">材料</option>
+<option value="body">作業時間</option>
 </select>
 <input id="newTagName">
 <button onclick="addTag()">追加</button>
@@ -92,46 +92,11 @@ header{background:#222;color:#fff;padding:10px;text-align:center;}
 </div>
 
 <script>
-let db;
-
-const request = indexedDB.open("recipeAppDB", 1);
-
-request.onupgradeneeded = function(e){
-  db = e.target.result;
-  db.createObjectStore("recipes", { keyPath: "id" });
-};
-
-request.onsuccess = function(e){
-  db = e.target.result;
-  loadData(); // ←ここ重要
-};
-
-function saveDB(item){
-  const tx = db.transaction("recipes","readwrite");
-  const store = tx.objectStore("recipes");
-  store.put(item);
-}
-
-function deleteDB(id){
-  const tx = db.transaction("recipes","readwrite");
-  tx.objectStore("recipes").delete(id);
-}
-
-function loadData(){
-  const tx = db.transaction("recipes","readonly");
-  const store = tx.objectStore("recipes");
-
-  const req = store.getAll();
-  req.onsuccess = function(){
-    data = req.result || [];
-    render();
-  };
-}
-  
 const tagLabels = {
-  type: "種類",
-  time: "肉・魚など",
-  freq: "卵・野菜など",
+  type: "作者",
+  time: "種類",
+  freq: "材料",
+  body: "作業時間"
 };
   
   
@@ -140,14 +105,15 @@ let d=new Date();
 return `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}-${('0'+d.getDate()).slice(-2)}`;
 }
 
-let data=[];
+let data=JSON.parse(localStorage.getItem("trainingApp")||"[]");
 
 let tagCategories=JSON.parse(localStorage.getItem("tagCategories"));
 if(!tagCategories){
 tagCategories={
-type:["主食","メインおかず",副菜"],
-time:["鶏もも","昼","夜"],
+type:["筋トレ","ストレッチ","マッサージ"],
+time:["朝","昼","夜"],
 freq:["毎日","週3","月水金"],
+body:["上半身","下半身","体幹","顔"]
 };
 }
 
@@ -156,8 +122,8 @@ let mode="OR";
 let showFavOnly=false;
 
 function save(){
-  data.forEach(d => saveDB(d)); // ←全部DBへ
-  localStorage.setItem("tagCategories",JSON.stringify(tagCategories));
+localStorage.setItem("trainingApp",JSON.stringify(data));
+localStorage.setItem("tagCategories",JSON.stringify(tagCategories));
 }
 
 function switchTab(tab){
@@ -270,9 +236,7 @@ let s=Math.min(800/img.width,1);
 c.width=img.width*s;
 c.height=img.height*s;
 ctx.drawImage(img,0,0,c.width,c.height);
-c.toBlob(blob => {
-  res(blob);
-}, "image/jpeg", 0.7);
+res(c.toDataURL("image/jpeg",0.7));
 };
 r.readAsDataURL(file);
 });
@@ -287,16 +251,14 @@ for(let f of imageInput.files) ps.push(compressImage(f));
 
 Promise.all(ps).then(imgs=>{
 data.push({
-  id:Date.now(),
-  name,
-  tags:addSelectedTags,
-  memo:memo.value,
-  images:imgs, // ← Blob配列になる
-  logs:[],
-  favorite:false
+id:Date.now(),
+name,
+tags:addSelectedTags,
+memo:memo.value,
+images:imgs,
+logs:[],
+favorite:false
 });
-
-imgs.forEach(()=>{}); // ダミーでOK
 save();
 
 alert("追加しました");
@@ -384,12 +346,9 @@ save();render();
 }
 
 function deleteItem(id){
-  if(!confirm("削除する？"))return;
-
-  data=data.filter(d=>d.id!==id);
-  deleteDB(id);
-
-  render();
+if(!confirm("削除する？"))return;
+data=data.filter(d=>d.id!==id);
+save();render();
 }
 
 /* ギャラリー */
