@@ -56,11 +56,16 @@ header{background:#222;color:#fff;padding:10px;text-align:center;}
 </div>
 
 <div id="tagTab" style="display:none">
-<input id="newTagName">
-<button onclick="addTag()">追加</button>
-<div id="tagList"></div>
-</div>
+<select id="newTagCat">
+<option value="type">種類</option>
+<option value="time">時間</option>
+</select>
 
+<input id="newTagName" placeholder="タグ名">
+<button onclick="addTag()">追加</button>
+
+<hr>
+<div id="tagList"></div>
 </div>
 
 <div class="modal" id="modal"><img id="mainImg"></div>
@@ -117,7 +122,10 @@ function switchTab(tab){
 listTab.style.display=tab==="list"?"block":"none";
 addTab.style.display=tab==="add"?"block":"none";
 tagTab.style.display=tab==="tag"?"block":"none";
-renderTags();render();
+
+renderTags();
+render();
+renderTagManager(); // ←これ追加
 }
 
 function renderTags(){
@@ -213,6 +221,58 @@ switchTab("list");
 });
 }
 
+function renderTagManager(){
+let html="";
+Object.entries(tagCategories).forEach(([cat,tags])=>{
+html+=`<h4>${cat}</h4>`;
+tags.forEach(tag=>{
+html+=`
+${tag}
+<button onclick="editTag('${cat}','${tag}')">編集</button>
+<button onclick="deleteTag('${cat}','${tag}')">削除</button><br>
+`;
+});
+});
+tagList.innerHTML=html;
+}
+
+function addTag(){
+let cat=newTagCat.value;
+let name=newTagName.value.trim();
+if(!name)return;
+
+if(!tagCategories[cat].includes(name)){
+tagCategories[cat].push(name);
+}
+
+newTagName.value="";
+saveTags();
+renderTags();
+renderTagManager();
+}
+
+function editTag(cat,oldTag){
+let n=prompt("編集",oldTag);
+if(!n)return;
+
+let arr=tagCategories[cat];
+arr[arr.indexOf(oldTag)]=n;
+
+saveTags();
+renderTags();
+renderTagManager();
+}
+
+function deleteTag(cat,tag){
+if(!confirm("削除する？"))return;
+
+tagCategories[cat]=tagCategories[cat].filter(t=>t!==tag);
+
+saveTags();
+renderTags();
+renderTagManager();
+}
+  
 /* ===== 表示 ===== */
 function render(){
 let list=document.getElementById("list");
