@@ -12,93 +12,76 @@
 <meta name="apple-mobile-web-app-title" content="レシピ管理">
 
 <style>
-body{font-family:-apple-system,sans-serif;margin:0;background:#f5f5f5;}
-header{background:#ff7f50;color:#fff;padding:12px;text-align:center;font-size:16px;}
+body{font-family:-apple-system;margin:0;background:#f5f5f5;}
+header{background:#ff7f50;color:#fff;padding:12px;text-align:center;}
 .container{padding:10px;}
 
-button{padding:8px;border:none;border-radius:8px;background:#ff7f50;color:#fff;margin:4px 2px;font-size:14px;}
-button:disabled{background:#ccc;}
+button{padding:8px;border:none;border-radius:8px;background:#ff7f50;color:#fff;margin:4px;}
+input,textarea,select{width:100%;padding:8px;margin:5px 0;border-radius:6px;border:1px solid #ccc;}
 
-input,textarea,select{
-  width:100%;
-  padding:8px;
-  margin:5px 0;
-  border-radius:6px;
-  border:1px solid #ccc;
-}
-
-.topbar{display:flex;gap:5px;flex-wrap:wrap;}
-
-/* カード小型化 */
-.card{
-  background:#fff;
-  padding:8px;
-  border-radius:10px;
-  margin-bottom:8px;
-  font-size:14px;
-}
-
-/* タイトル行 */
-.card-header{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
-
-.fav{font-size:18px;cursor:pointer;}
+.card{background:#fff;padding:8px;border-radius:10px;margin-bottom:8px;font-size:14px;}
+.card-header{display:flex;justify-content:space-between;}
+.fav{cursor:pointer;font-size:18px;}
 .active{color:gold;}
 
-.tag{
-  font-size:11px;
-  background:#eee;
-  padding:2px 5px;
-  border-radius:5px;
-  margin-right:3px;
+.tag{font-size:11px;background:#eee;padding:2px 5px;border-radius:5px;margin-right:3px;}
+
+.gallery{display:flex;overflow-x:auto;gap:6px;}
+.thumb{width:80px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0;cursor:pointer;}
+
+.count{font-size:12px;color:#555;}
+
+/* モーダル */
+.modal{
+  position:fixed;
+  top:0;left:0;
+  width:100%;height:100%;
+  background:rgba(0,0,0,0.8);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  z-index:1000;
+}
+.modal img{
+  max-width:90%;
+  max-height:80%;
+  border-radius:10px;
+}
+.modal-close{
+  position:absolute;
+  top:20px;
+  right:20px;
+  font-size:24px;
+  color:#fff;
+  cursor:pointer;
 }
 
-/* 👇 ギャラリー */
-.gallery{
-  display:flex;
-  overflow-x:auto;
-  gap:6px;
-  margin:5px 0;
+/* 編集 */
+.edit-area input, .edit-area textarea{
+  font-size:14px;
 }
-
-.thumb{
-  width:80px;
-  height:80px;
-  object-fit:cover;
-  border-radius:8px;
-  flex-shrink:0;
-}
-
-/* 情報コンパクト */
-.count{font-size:12px;font-weight:bold;color:#555;}
-
 </style>
 </head>
 
 <body>
 
-<header>🍳 レシピ管理（軽量UI）</header>
+<header>🍳 レシピ管理（進化版）</header>
 
 <div class="container">
 
-<div class="topbar">
-<button id="addBtn" onclick="showAdd()" disabled>＋追加</button>
+<button onclick="showAdd()">＋追加</button>
 <input id="search" placeholder="検索..." oninput="render()">
 
 <select id="sort" onchange="render()">
-  <option value="new">新しい順</option>
-  <option value="count">回数順</option>
-  <option value="recent">最近作った順</option>
+<option value="new">新しい順</option>
+<option value="count">回数順</option>
+<option value="recent">最近作った順</option>
 </select>
-</div>
 
 <div id="addForm" style="display:none;">
-<input id="title" placeholder="レシピ名（必須）">
+<input id="title" placeholder="レシピ名">
 <input type="file" id="image" multiple>
-<input id="tags" placeholder="タグ（例：時短,子どもウケ）">
+<input id="tags" placeholder="タグ（カンマ区切り）">
 <textarea id="memo" placeholder="メモ"></textarea>
 <button onclick="addRecipe()">保存</button>
 </div>
@@ -107,54 +90,54 @@ input,textarea,select{
 
 </div>
 
+<!-- モーダル -->
+<div id="modal" class="modal" onclick="closeModal()">
+<span class="modal-close">✕</span>
+<img id="modalImg">
+</div>
+
 <script>
 let db;
-let dbReady = false;
+let dbReady=false;
 
-// ===== DB =====
-const request = indexedDB.open("recipeDB", 1);
+const req=indexedDB.open("recipeDB",1);
 
-request.onupgradeneeded = e=>{
-  db = e.target.result;
+req.onupgradeneeded=e=>{
+  db=e.target.result;
   db.createObjectStore("recipes",{keyPath:"id"});
 };
 
-request.onsuccess = e=>{
-  db = e.target.result;
-  dbReady = true;
-  document.getElementById("addBtn").disabled=false;
+req.onsuccess=e=>{
+  db=e.target.result;
+  dbReady=true;
   render();
 };
 
-// ===== UI =====
+// ===== 追加 =====
 function showAdd(){
-  document.getElementById("addForm").style.display="block";
+  addForm.style.display="block";
 }
 
-// ===== 追加 =====
 function addRecipe(){
-  if(!dbReady){ alert("準備中"); return; }
+  if(!dbReady)return;
 
-  const title = document.getElementById("title").value.trim();
-  if(!title){ alert("名前入れて"); return; }
+  const titleVal=title.value.trim();
+  if(!titleVal){ alert("名前入れて"); return;}
 
-  const files = document.getElementById("image").files;
+  const files=image.files;
 
   if(files.length===0){
     saveRecipe([]);
     return;
   }
 
-  const promises = Array.from(files).map(file=>{
-    return new Promise((res,rej)=>{
-      const reader=new FileReader();
-      reader.onload=e=>res(e.target.result);
-      reader.onerror=rej;
-      reader.readAsDataURL(file);
+  Promise.all([...files].map(f=>{
+    return new Promise(res=>{
+      const r=new FileReader();
+      r.onload=e=>res(e.target.result);
+      r.readAsDataURL(f);
     });
-  });
-
-  Promise.all(promises).then(imgs=>saveRecipe(imgs));
+  })).then(imgs=>saveRecipe(imgs));
 }
 
 function saveRecipe(imgs){
@@ -163,27 +146,20 @@ function saveRecipe(imgs){
 
   store.add({
     id:Date.now(),
-    title:document.getElementById("title").value,
+    title:title.value,
     imgs:imgs,
-    tags:document.getElementById("tags").value.split(",").filter(t=>t),
-    memo:document.getElementById("memo").value,
+    tags:tags.value.split(",").filter(t=>t),
+    memo:memo.value,
     count:0,
     last:"",
     fav:false
   });
 
   tx.oncomplete=()=>{
-    document.getElementById("addForm").style.display="none";
-    clearForm();
+    addForm.style.display="none";
+    title.value=""; image.value=""; tags.value=""; memo.value="";
     render();
   };
-}
-
-function clearForm(){
-  title.value="";
-  image.value="";
-  tags.value="";
-  memo.value="";
 }
 
 // ===== 描画 =====
@@ -192,52 +168,54 @@ function render(){
 
   const tx=db.transaction("recipes","readonly");
   const store=tx.objectStore("recipes");
-  const req=store.getAll();
+  const r=store.getAll();
 
-  req.onsuccess=()=>{
-    let recipes=req.result;
+  r.onsuccess=()=>{
+    let data=r.result;
 
     const q=search.value.toLowerCase();
-    const sort=document.getElementById("sort").value;
+    const sort=sort.value;
 
-    recipes=recipes.filter(r=>(r.title||"").toLowerCase().includes(q));
+    data=data.filter(d=>(d.title||"").toLowerCase().includes(q));
 
-    if(sort==="count"){
-      recipes.sort((a,b)=>b.count-a.count);
-    }else if(sort==="recent"){
-      recipes.sort((a,b)=>(b.last||"").localeCompare(a.last||""));
-    }else{
-      recipes.sort((a,b)=>b.id-a.id);
-    }
+    if(sort==="count") data.sort((a,b)=>b.count-a.count);
+    else if(sort==="recent") data.sort((a,b)=>(b.last||"").localeCompare(a.last||""));
+    else data.sort((a,b)=>b.id-a.id);
 
-    recipes.sort((a,b)=>b.fav-a.fav);
+    data.sort((a,b)=>b.fav-a.fav);
 
     list.innerHTML="";
 
-    recipes.forEach(r=>{
+    data.forEach(d=>{
       const div=document.createElement("div");
       div.className="card";
 
       div.innerHTML=`
         <div class="card-header">
-          <strong>${r.title}</strong>
-          <span class="fav ${r.fav?"active":""}" onclick="toggleFav(${r.id})">★</span>
+          <strong contenteditable="true" onblur="updateField(${d.id},'title',this.innerText)">
+            ${d.title}
+          </strong>
+          <span class="fav ${d.fav?"active":""}" onclick="toggleFav(${d.id})">★</span>
         </div>
 
         <div class="gallery">
-          ${r.imgs.map(img=>`<img src="${img}" class="thumb">`).join("")}
+          ${d.imgs.map(img=>`<img src="${img}" class="thumb" onclick="openModal('${img}')">`).join("")}
         </div>
 
-        <div>
-          ${r.tags.map(t=>`<span class="tag">${t}</span>`).join("")}
+        <div contenteditable="true" onblur="updateTags(${d.id},this.innerText)">
+          ${d.tags.join(",")}
+        </div>
+
+        <div contenteditable="true" onblur="updateField(${d.id},'memo',this.innerText)">
+          ${d.memo}
         </div>
 
         <div class="count">
-          🍳${r.count}回 / ${r.last?new Date(r.last).toLocaleDateString():"-"}
+          🍳${d.count}回 / ${d.last?new Date(d.last).toLocaleDateString():"-"}
         </div>
 
-        <button onclick="cook(${r.id})">作った</button>
-        <button onclick="del(${r.id})">削除</button>
+        <button onclick="cook(${d.id})">作った</button>
+        <button onclick="del(${d.id})">削除</button>
       `;
 
       list.appendChild(div);
@@ -245,17 +223,34 @@ function render(){
   };
 }
 
-// ===== 操作 =====
+// ===== 更新 =====
+function updateField(id,field,value){
+  const tx=db.transaction("recipes","readwrite");
+  const store=tx.objectStore("recipes");
+  const r=store.get(id);
+
+  r.onsuccess=()=>{
+    const d=r.result;
+    d[field]=value;
+    store.put(d);
+  };
+}
+
+function updateTags(id,text){
+  updateField(id,"tags",text.split(",").map(t=>t.trim()).filter(t=>t));
+}
+
+// ===== その他操作 =====
 function cook(id){
   const tx=db.transaction("recipes","readwrite");
   const store=tx.objectStore("recipes");
-  const req=store.get(id);
+  const r=store.get(id);
 
-  req.onsuccess=()=>{
-    const r=req.result;
-    r.count++;
-    r.last=new Date().toISOString();
-    store.put(r);
+  r.onsuccess=()=>{
+    const d=r.result;
+    d.count++;
+    d.last=new Date().toISOString();
+    store.put(d);
     render();
   };
 }
@@ -263,12 +258,12 @@ function cook(id){
 function toggleFav(id){
   const tx=db.transaction("recipes","readwrite");
   const store=tx.objectStore("recipes");
-  const req=store.get(id);
+  const r=store.get(id);
 
-  req.onsuccess=()=>{
-    const r=req.result;
-    r.fav=!r.fav;
-    store.put(r);
+  r.onsuccess=()=>{
+    const d=r.result;
+    d.fav=!d.fav;
+    store.put(d);
     render();
   };
 }
@@ -278,6 +273,16 @@ function del(id){
   const store=tx.objectStore("recipes");
   store.delete(id);
   tx.oncomplete=render;
+}
+
+// ===== モーダル =====
+function openModal(src){
+  modal.style.display="flex";
+  modalImg.src=src;
+}
+
+function closeModal(){
+  modal.style.display="none";
 }
 </script>
 
